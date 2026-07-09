@@ -1,6 +1,7 @@
 import express from "express";
 import dotenv from "dotenv";
 import pool from "./config/db.js";
+import userRoutes from "./routes/user.routes.js";
 
 dotenv.config();
 
@@ -21,6 +22,8 @@ app.get("/db-test", async (req, res) => {
         res.status(500).send(error.message);
     }
 });
+
+app.use("/users", userRoutes);
 
 app.listen(3000, () => {
     console.log("Server is running on port 3000.");
