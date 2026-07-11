@@ -3,6 +3,7 @@ import dotenv from "dotenv";
 import pool from "./config/db.js";
 import userRoutes from "./routes/user.routes.js";
 import categoryRoutes from "./routes/category.routes.js";
+import expenseRoutes from "./routes/expense.routes.js";
 
 dotenv.config();
 
