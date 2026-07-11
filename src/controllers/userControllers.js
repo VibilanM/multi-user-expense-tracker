@@ -34,8 +34,7 @@ async function getUserById(req, res) {
 async function addUser(req, res) {
     try {
         const { name, email } = req.body;
-        
-        // Input validation
+
         if (!name || typeof name !== "string" || name.trim() === "") {
             return res.status(400).json({ message: "Name is required and must be a non-empty string." });
         }
