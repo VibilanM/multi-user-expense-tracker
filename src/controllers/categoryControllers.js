@@ -2,14 +2,27 @@ import pool from "../config/db.js";
 
 async function addCategory(req, res) {
     try {
-        const { name } = req.body;
+        const { name, user_id } = req.body;
 
         if (!name || typeof name !== "string" || name.trim() === "") {
             return res.status(400).json({ message: "Name is required and must be a non-empty string." });
         }
+        if (user_id === undefined || user_id === null) {
+            return res.status(400).json({ message: "User ID is required." });
+        }
+        const userIdNum = parseInt(user_id, 10);
+        if (isNaN(userIdNum)) {
+            return res.status(400).json({ message: "User ID must be a valid number." });
+        }
+
+        const userCheck = await pool.query("SELECT id FROM users WHERE id = $1;", [userIdNum]);
+        if (userCheck.rows.length === 0) {
+            return res.status(400).json({ message: "User not found." });
+        }
+
         const result = await pool.query(
-            "INSERT INTO categories(name) VALUES($1) RETURNING *;",
-            [name.trim()]
+            "INSERT INTO categories(name, user_id) VALUES($1, $2) RETURNING *;",
+            [name.trim(), userIdNum]
         );
         res.status(201).json({
             message: "Category created.",
@@ -23,7 +36,17 @@ async function addCategory(req, res) {
 
 async function getCategories(req, res) {
     try {
-        const categories = await pool.query("SELECT * FROM categories;");
+        const userId = req.query.user_id || req.headers["x-user-id"];
+        let categories;
+        if (userId) {
+            const userIdNum = parseInt(userId, 10);
+            if (isNaN(userIdNum)) {
+                return res.status(400).json({ message: "Invalid user ID format." });
+            }
+            categories = await pool.query("SELECT * FROM categories WHERE user_id = $1;", [userIdNum]);
+        } else {
+            categories = await pool.query("SELECT * FROM categories;");
+        }
         res.json(categories.rows);
     }
     catch (error) {
