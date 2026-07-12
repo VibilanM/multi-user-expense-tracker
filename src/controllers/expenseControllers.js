@@ -195,4 +195,97 @@ async function updateExpense(req, res) {
     }
 }
 
-export { addExpense, getExpenseById, deleteExpense, updateExpense };
+async function monthlySummary(req, res) {
+    try {
+        const userId = req.params.id;
+        const month = req.query.month;
+        const year = req.query.year;
+
+        const query = `
+            SELECT
+                TO_CHAR(date, 'Month') AS month,
+                SUM(amount) AS total_spent,
+                COUNT(*) AS expense_count
+            FROM expenses
+            WHERE user_id = $1
+            AND EXTRACT(YEAR FROM date) = $2
+            AND EXTRACT(MONTH FROM date) = $3
+            GROUP BY TO_CHAR(date, 'Month');
+        `;
+
+        const result = await pool.query(query, [userId, year, month]);
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({
+                message: "No expenses found."
+            });
+        }
+
+        res.json(result.rows[0]);
+    }
+    catch (err) {
+        res.status(500).json({
+            message: err.message
+        });
+    }
+}
+
+async function categorySummary(req, res) {
+    try {
+        const userId = parseInt(req.params.id, 10);
+
+        if (isNaN(userId)) {
+            return res.status(400).json({
+                message: "Invalid user ID."
+            });
+        }
+
+        const { category, month } = req.query;
+
+        let query = `
+            SELECT
+                categories.name AS category,
+                SUM(expenses.amount) AS total_spent,
+                COUNT(expenses.id) AS expense_count
+            FROM expenses
+            JOIN categories
+                ON expenses.category_id = categories.id
+            WHERE expenses.user_id = $1
+        `;
+
+        const values = [userId];
+        const conditions = [];
+
+        if (category) {
+            values.push(category);
+            conditions.push(`categories.name = $${values.length}`);
+        }
+
+        if (month) {
+            values.push(month);
+            conditions.push(
+                `DATE_TRUNC('month', expenses.date) = DATE_TRUNC('month', $${values.length}::date)`
+            );
+        }
+
+        if (conditions.length > 0) {
+            query += ` AND ${conditions.join(" AND ")}`;
+        }
+
+        query += `
+            GROUP BY categories.name
+            ORDER BY total_spent DESC;
+        `;
+
+        const result = await pool.query(query, values);
+
+        res.json(result.rows);
+
+    } catch (err) {
+        res.status(500).json({
+            message: err.message
+        });
+    }
+}
+
+export { addExpense, getExpenseById, deleteExpense, updateExpense, monthlySummary, categorySummary };
