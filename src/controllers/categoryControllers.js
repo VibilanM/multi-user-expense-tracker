@@ -20,6 +20,14 @@ async function addCategory(req, res) {
             return res.status(400).json({ message: "User not found." });
         }
 
+        const dupCheck = await pool.query(
+            "SELECT id FROM categories WHERE user_id = $1 AND LOWER(name) = LOWER($2);",
+            [userIdNum, name.trim()]
+        );
+        if (dupCheck.rows.length > 0) {
+            return res.status(409).json({ message: "Category already exists for this user." });
+        }
+
         const result = await pool.query(
             "INSERT INTO categories(name, user_id) VALUES($1, $2) RETURNING *;",
             [name.trim(), userIdNum]
@@ -103,6 +111,19 @@ async function updateCategory(req, res) {
         if (!name || typeof name !== "string" || name.trim() === "") {
             return res.status(400).json({ message: "Name is required and must be a non-empty string." });
         }
+
+        const existing = await pool.query("SELECT user_id FROM categories WHERE id = $1;", [id]);
+        if (existing.rows.length === 0) {
+            return res.status(404).json({ message: "Category not found." });
+        }
+        const dupCheck = await pool.query(
+            "SELECT id FROM categories WHERE user_id = $1 AND LOWER(name) = LOWER($2) AND id != $3;",
+            [existing.rows[0].user_id, name.trim(), id]
+        );
+        if (dupCheck.rows.length > 0) {
+            return res.status(409).json({ message: "Category already exists for this user." });
+        }
+
         const result = await pool.query(
             "UPDATE categories SET name = $1 WHERE id = $2 RETURNING *;",
             [name.trim(), id]

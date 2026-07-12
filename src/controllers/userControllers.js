@@ -41,6 +41,13 @@ async function addUser(req, res) {
         if (!email || typeof email !== "string" || email.trim() === "" || !email.includes("@")) {
             return res.status(400).json({ message: "A valid email is required." });
         }
+
+        const emailCheck = await pool.query(
+            "SELECT id FROM users WHERE LOWER(email) = LOWER($1);", [email.trim()]
+        );
+        if (emailCheck.rows.length > 0) {
+            return res.status(409).json({ message: "Email already in use." });
+        }
         
         const result = await pool.query(
             "INSERT INTO users(name, email) VALUES($1, $2) RETURNING *;",

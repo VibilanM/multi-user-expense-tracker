@@ -2,10 +2,13 @@ import pool from "../config/db.js";
 
 async function addExpense(req, res) {
     try {
-        const { amount, category_id, user_id } = req.body;
+        const { amount, category_id, user_id, description, date } = req.body;
 
         if (!amount || typeof amount !== "number" || amount <= 0) {
-            return res.status(400).json({ message: "Amount is required and must be a positive number." });
+            return res.status(400).json({ message: "Amount must be greater than 0." });
+        }
+        if (amount > 10000000) {
+            return res.status(400).json({ message: "Amount must not exceed 10,000,000." });
         }
         if (category_id === undefined || category_id === null) {
             return res.status(400).json({ message: "Category ID is required." });
@@ -13,6 +16,13 @@ async function addExpense(req, res) {
         if (user_id === undefined || user_id === null) {
             return res.status(400).json({ message: "User ID is required." });
         }
+        if (description && description.length > 255) {
+            return res.status(400).json({ message: "Description must be 255 characters or less." });
+        }
+        if (date && new Date(date) > new Date()) {
+            return res.status(400).json({ message: "Expense date cannot be in the future." });
+        }
+
         const categoryIdNum = parseInt(category_id, 10);
         const userIdNum = parseInt(user_id, 10);
         if (isNaN(categoryIdNum) || isNaN(userIdNum)) {
@@ -23,14 +33,17 @@ async function addExpense(req, res) {
         if (userCheck.rows.length === 0) {
             return res.status(400).json({ message: "User not found." });
         }
-        const categoryCheck = await pool.query("SELECT id FROM categories WHERE id = $1;", [categoryIdNum]);
+        const categoryCheck = await pool.query("SELECT id, user_id FROM categories WHERE id = $1;", [categoryIdNum]);
         if (categoryCheck.rows.length === 0) {
             return res.status(400).json({ message: "Category not found." });
         }
+        if (categoryCheck.rows[0].user_id !== userIdNum) {
+            return res.status(403).json({ message: "Category does not belong to this user." });
+        }
 
         const result = await pool.query(
-            "INSERT INTO expenses(amount, category_id, user_id) VALUES($1, $2, $3) RETURNING *;",
-            [amount, categoryIdNum, userIdNum]
+            "INSERT INTO expenses(amount, category_id, user_id, description, date) VALUES($1, $2, $3, $4, COALESCE($5::date, CURRENT_DATE)) RETURNING *;",
+            [amount, categoryIdNum, userIdNum, description || null, date || null]
         );
         res.status(201).json({
             message: "Expense created.",
@@ -167,30 +180,46 @@ async function updateExpense(req, res) {
             return res.status(400).json({ message: "Invalid expense ID format." });
         }
         const id = parseInt(idStr, 10);
-        const { amount, category_id } = req.body;
+        const { amount, category_id, description, date } = req.body;
         if (!amount || typeof amount !== "number" || amount <= 0) {
-            return res.status(400).json({ message: "Amount is required and must be a positive number." });
+            return res.status(400).json({ message: "Amount must be greater than 0." });
+        }
+        if (amount > 10000000) {
+            return res.status(400).json({ message: "Amount must not exceed 10,000,000." });
         }
         if (category_id === undefined || category_id === null) {
             return res.status(400).json({ message: "Category ID is required." });
         }
+        if (description && description.length > 255) {
+            return res.status(400).json({ message: "Description must be 255 characters or less." });
+        }
+        if (date && new Date(date) > new Date()) {
+            return res.status(400).json({ message: "Expense date cannot be in the future." });
+        }
+
         const categoryIdNum = parseInt(category_id, 10);
         if (isNaN(categoryIdNum)) {
             return res.status(400).json({ message: "Category ID must be a valid number." });
         }
 
-        const categoryCheck = await pool.query("SELECT id FROM categories WHERE id = $1;", [categoryIdNum]);
+        const expenseCheck = await pool.query("SELECT user_id FROM expenses WHERE id = $1;", [id]);
+        if (expenseCheck.rows.length === 0) {
+            return res.status(404).json({ message: "Expense not found." });
+        }
+        const expenseUserId = expenseCheck.rows[0].user_id;
+
+        const categoryCheck = await pool.query("SELECT id, user_id FROM categories WHERE id = $1;", [categoryIdNum]);
         if (categoryCheck.rows.length === 0) {
             return res.status(400).json({ message: "Category not found." });
         }
+        if (categoryCheck.rows[0].user_id !== expenseUserId) {
+            return res.status(403).json({ message: "Category does not belong to this user." });
+        }
 
         const result = await pool.query(
-            "UPDATE expenses SET amount = $1, category_id = $2 WHERE id = $3 RETURNING *;",
-            [amount, categoryIdNum, id]
+            "UPDATE expenses SET amount = $1, category_id = $2, description = $3, date = COALESCE($4::date, date) WHERE id = $5 RETURNING *;",
+            [amount, categoryIdNum, description !== undefined ? description : null, date || null, id]
         );
-        if (result.rows.length === 0) {
-            return res.status(404).json({ message: "Expense not found." });
-        }
         res.status(200).json({
             message: "Expense updated.",
             expense: result.rows[0]
