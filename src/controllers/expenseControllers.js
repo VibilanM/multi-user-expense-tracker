@@ -45,7 +45,7 @@ async function addExpense(req, res) {
 async function getExpenseById(req, res) {
     try {
         const userId = req.params.id;
-        const { category, start, end } = req.query;
+        const { category, start, end, sort, order } = req.query;
 
         let query = `
             SELECT
@@ -81,7 +81,15 @@ async function getExpenseById(req, res) {
             query += ` AND ${conditions.join(" AND ")}`;
         }
 
-        query += ` ORDER BY expenses.date DESC;`;
+        const allowedSortFields = {
+            amount: "expenses.amount",
+            date: "expenses.date"
+        };
+
+        const sortColumn = allowedSortFields[sort] || "expenses.date";
+        const sortOrder = order === "asc" ? "ASC" : "DESC";
+
+        query += ` ORDER BY ${sortColumn} ${sortOrder}`;
 
         let expenses;
         if (userId) {
