@@ -42,38 +42,56 @@ async function addExpense(req, res) {
     }
 }
 
-async function getExpenses(req, res) {
+async function getExpenseById(req, res) {
     try {
-        const userId = req.query.user_id || req.headers["x-user-id"];
+        const userId = req.params.id;
+        const { category, start, end } = req.query;
+
+        let query = `
+            SELECT
+               expenses.id,
+               expenses.amount, 
+               expenses.description,
+               expenses.date,
+               users.name as user_name,
+               categories.name as category_name
+            FROM expenses
+            JOIN users ON expenses.user_id = users.id
+            JOIN categories ON expenses.category_id = categories.id
+            WHERE users.id = $1
+        `;
+
+        const conditions = [];
+        const values = [userId];
+
+        if (category) {
+            values.push(category);
+            conditions.push(`categories.name = $${values.length}`);
+        }
+        if (start) {
+            values.push(start);
+            conditions.push(`expenses.date >= $${values.length}`);
+        }
+        if (end) {
+            values.push(end);
+            conditions.push(`expenses.date <= $${values.length}`);
+        }
+
+        if (conditions.length > 0) {
+            query += ` AND ${conditions.join(" AND ")}`;
+        }
+
+        query += ` ORDER BY expenses.date DESC;`;
+
         let expenses;
         if (userId) {
             const userIdNum = parseInt(userId, 10);
             if (isNaN(userIdNum)) {
                 return res.status(400).json({ message: "Invalid user ID format." });
             }
-            expenses = await pool.query("SELECT * FROM expenses WHERE user_id = $1;", [userIdNum]);
-        } else {
-            expenses = await pool.query("SELECT * FROM expenses;");
+            expenses = await pool.query(query, values);
         }
         res.json(expenses.rows);
-    }
-    catch (error) {
-        res.status(500).send(error.message);
-    }
-}
-
-async function getExpenseById(req, res) {
-    try {
-        const idStr = req.params.id;
-        if (!/^\d+$/.test(idStr)) {
-            return res.status(400).json({ message: "Invalid expense ID format." });
-        }
-        const id = parseInt(idStr, 10);
-        const expense = await pool.query("SELECT * FROM expenses WHERE id = $1;", [id]);
-        if (expense.rows.length === 0) {
-            return res.status(404).json({ message: "Expense not found." });
-        }
-        res.json(expense.rows[0]);
     }
     catch (error) {
         res.status(500).send(error.message);
@@ -141,4 +159,4 @@ async function updateExpense(req, res) {
     }
 }
 
-export { addExpense, getExpenses, getExpenseById, deleteExpense, updateExpense };
+export { addExpense, getExpenseById, deleteExpense, updateExpense };

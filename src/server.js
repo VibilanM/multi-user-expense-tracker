@@ -27,6 +27,7 @@ app.get("/db-test", async (req, res) => {
 
 app.use("/users", userRoutes);
 app.use("/categories", categoryRoutes);
+app.use("/expenses", expenseRoutes);
 
 app.listen(3000, () => {
     console.log("Server is running on port 3000.");
