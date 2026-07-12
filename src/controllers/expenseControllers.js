@@ -52,7 +52,8 @@ async function getExpenseById(req, res) {
             sort,
             order,
             page = 1,
-            limit = 20
+            limit = 20,
+            q
         } = req.query;
 
         const pageNum = parseInt(page, 10);
@@ -97,6 +98,11 @@ async function getExpenseById(req, res) {
         if (end) {
             values.push(end);
             conditions.push(`expenses.date <= $${values.length}`);
+        }
+
+        if (q) {
+            values.push(`%${q}%`);
+            conditions.push(`expenses.description ILIKE $${values.length}`);
         }
 
         if (conditions.length > 0) {
