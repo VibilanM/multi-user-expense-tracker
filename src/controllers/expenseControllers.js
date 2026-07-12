@@ -45,7 +45,29 @@ async function addExpense(req, res) {
 async function getExpenseById(req, res) {
     try {
         const userId = req.params.id;
-        const { category, start, end, sort, order } = req.query;
+        const {
+            category,
+            start,
+            end,
+            sort,
+            order,
+            page = 1,
+            limit = 20
+        } = req.query;
+
+        const pageNum = parseInt(page, 10);
+        const limitNum = parseInt(limit, 10);
+
+        if (
+            isNaN(pageNum) || pageNum < 1 ||
+            isNaN(limitNum) || limitNum < 1
+        ) {
+            return res.status(400).json({
+                message: "Invalid page or limit."
+            });
+        }
+
+        const offset = (pageNum - 1) * limitNum;
 
         let query = `
             SELECT
@@ -90,6 +112,12 @@ async function getExpenseById(req, res) {
         const sortOrder = order === "asc" ? "ASC" : "DESC";
 
         query += ` ORDER BY ${sortColumn} ${sortOrder}`;
+
+        values.push(limitNum);
+        query += ` LIMIT $${values.length}`;
+
+        values.push(offset);
+        query += ` OFFSET $${values.length}`;
 
         let expenses;
         if (userId) {
